@@ -1,8 +1,8 @@
 /**
-*	Pipe Program
-* Using the Liberty Shell Linux Shell
+*	Shell Shock Linux Shell
 *	By Ben Wagner
-*	Last modified November 15, 2015
+*	With help from Jerry Quintero
+*	Last modified October 6, 2015
 */
 
 #include <stdio.h>
@@ -35,16 +35,6 @@ int main(int argc, char **argv, char **envp)
 	//Get info for initial display
 	PATH = findPATH(envp);
 	listOfDirectories = getDirectories();
-
-	printf("Address %p\n", &listOfDirectories); //Output initial program address
-
-	int count = 0;
-	while(listOfDirectories[count] != NULL)
-	{
-		printf("Base[%d] Address %p Pointer Value %p String = %s\n",
-			count, &listOfDirectories[count], listOfDirectories[count], listOfDirectories[count]);
-		count++;
-	}
 
 	char line[CMD_MAX]; //Defines how many inputs the line can have
 	char ** argument[2];
