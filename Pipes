@@ -1,0 +1,300 @@
+/**
+*	Pipe Program
+* Using the Liberty Shell Linux Shell
+*	By Ben Wagner
+*	Last modified November 15, 2015
+*/
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdbool.h>
+
+int CMD_MAX = 80; //Maximum amount of commands
+char PROMPT[] = "LIBERTY SHELL $"; //The prompt
+
+char *PATH; //NOTE - any other pointer name was giving me a Segmentation Fault
+char **listOfDirectories; //Double pointer for directories
+
+//Functions used in this program
+char* findPATH(char **);
+char** getDirectories();
+char** getArgs(char line[]);
+void execCmd(char**);
+
+//For the pipe, defines ends
+int pipefd[2]; 
+
+bool onSecond;
+
+//Main function initiates shell and prompts for user input
+int main(int argc, char **argv, char **envp)
+{
+	//Get info for initial display
+	PATH = findPATH(envp);
+	listOfDirectories = getDirectories();
+
+	printf("Address %p\n", &listOfDirectories); //Output initial program address
+
+	int count = 0;
+	while(listOfDirectories[count] != NULL)
+	{
+		printf("Base[%d] Address %p Pointer Value %p String = %s\n",
+			count, &listOfDirectories[count], listOfDirectories[count], listOfDirectories[count]);
+		count++;
+	}
+
+	char line[CMD_MAX]; //Defines how many inputs the line can have
+	char ** argument[2];
+	
+	printf("%s", PROMPT); //Prints the initial prompt
+
+	__pid_t processID; //Handles process IDs
+	int status;
+
+	char buf;
+	onSecond = false;
+
+	//Main loop of Liberty Shell
+	while(fgets(line, CMD_MAX, stdin) != NULL)
+	{
+		//pipe(pipefd);
+		argument[0] = getArgs(line); //Gets and parses first command
+		
+		argument[1] = getArgs(line); //Gets and parses second command
+		
+		processID = fork(); //Forks the process
+		if(processID == -1)
+		{
+			puts("Error in forking process.\n");
+		}
+		//Most piping done here	
+		else if(processID == 0)
+		{
+			//These execute the two separate arguments
+			execCmd(argument[0]);
+			execCmd(argument[1]);
+
+			//Obtained from Internets
+			//close(pipefd[1]);
+			//while(read(pipefd[0], &buf, 1) > 0)
+			//{
+			//	write(STDOUT_FILENO, &buf, 1);
+//
+//				printf("Writing to child...");
+//			}
+//			write(STDOUT_FILENO, "\n", 1);
+//			close(pipefd[0]);
+		}
+		else
+		{
+			//These three were also obtained from internets
+			//close(pipefd[0]);
+			//write(pipefd[1], argv[1], strlen(argv[1]));
+			//close(pipefd[1]);
+
+			wait(&status);
+		}		
+
+		printf("%s", PROMPT);
+	}	
+
+	free(listOfDirectories);
+	return 0;
+}
+
+//Gets additional arguments entered by the user
+char** getArgs(char line[])
+{
+	char **args;
+	char **args2;
+	
+	int lineLength = strlen(line) + 1;
+	int numberOfArguments = 1;
+
+	for(int i = 0; i < lineLength; i++)
+	{
+		if(line[i] == ' ' || line[i] == '\0')
+		{
+			numberOfArguments++;
+		}
+	}
+	
+	args = malloc(numberOfArguments * sizeof(char*));
+
+	int charCount = 0, arrayCount = 0;
+	for(int i = 0; i < lineLength; i++)
+	{
+		if(line[i] == ' ' || line[i] == '\0')
+		{
+			charCount++;
+			args[arrayCount] = malloc(charCount * sizeof(char*));
+			arrayCount++;
+			charCount = 0;
+		}
+		else if(line[i] == '\n')
+		{
+			continue;
+		}
+		else
+		{
+			charCount++;
+		}
+	}
+
+	int stringDex = 0, arrayDex = 0;
+	for(int i = 0; i < lineLength; i++)
+	{
+		char *p;
+			
+		if(line[i] == ' ' || line[i] == '\0' || line[i] == '|')
+		{
+			
+
+			stringDex++;
+			args[arrayDex][stringDex] = '\0';
+			arrayDex++;
+			stringDex = 0;
+		}
+		//This is used to eliminate | and designate the second command
+		else if(line[i] == '|')
+		{
+			if(!onSecond)
+			{	
+				while((p = strchr(line, '|')) != NULL);
+					strcpy(p, p+1);
+					
+				onSecond = true;
+				return args;
+			}
+			else
+			{
+				while((p = strchr(line, '|')) != NULL);
+					strcpy(p, p+1);
+
+				for(int a = 0; a < strlen(*args); a++)
+				{
+					free(args[a]);
+				}
+			}
+		}
+		else if(line[i] == '\n')
+		{
+			continue;
+		}
+		else
+		{
+			args[arrayDex][stringDex] = line[i];
+			stringDex++;
+		}
+	}
+	
+	return args;
+}
+
+char* findPATH(char **envp)
+{
+	char test[] = "****";
+	int count = 0;
+
+	while(envp[count] != NULL)
+	{
+		for(int i = 0; i < 4; i++)
+		{
+			test[i] = envp[count][i];
+		}
+		if(strcmp(test, "PATH") == 0)
+		{
+			break;
+		}
+		count++;
+	}
+	return envp[count];
+}
+
+//This function finds the path of the entered command
+char** getDirectories()
+{
+	char *pPATH = PATH;
+	char **parsedPATH;
+
+	pPATH += 5;
+
+	int directoriesCounter = 0;
+	int lengthOfPATH = strlen(pPATH) + 1;
+
+	for(int i = 0; i < lengthOfPATH; i++)
+	{
+		if(pPATH[i] == ':' || pPATH[i] == '\0')
+		{
+			directoriesCounter++;
+		}
+	}
+	directoriesCounter++;
+
+	parsedPATH = malloc(directoriesCounter * sizeof(char*));
+
+	int charCounter = 0, arrayCounter = 0;
+	for(int i = 0; i < lengthOfPATH; i++)
+	{
+		if(pPATH[i] == ':' || pPATH[i] == '\0')
+		{
+			charCounter++;
+			parsedPATH[arrayCounter] = malloc(charCounter);
+
+			charCounter = 0;
+			arrayCounter++;
+		}
+		else
+		{
+			charCounter++;
+		}
+	}
+
+	int stringDex = 0, arrayDex = 0;
+	for(int i = 0; i < lengthOfPATH; i++)
+	{
+		if(pPATH[i] == ':' || pPATH[i] == '\0')
+		{
+			stringDex++;
+			parsedPATH[arrayDex][stringDex] = '\0';
+
+			arrayDex++;
+			stringDex = 0;
+		}
+		else
+		{
+			parsedPATH[arrayDex][stringDex] = pPATH[i];
+			stringDex++;
+		}
+	}
+
+	parsedPATH[directoriesCounter] = NULL;
+	return parsedPATH;
+}
+
+//Executes entered commands
+void execCmd(char** arguments)
+{
+	char searchDirectory[200];
+
+	int count = 0;
+	while(listOfDirectories[count] != NULL)
+	{
+		strcpy(searchDirectory, listOfDirectories[count]);
+		strcat(searchDirectory, "/");
+		strcat(searchDirectory, arguments[0]);
+		printf("Checking %s\n", searchDirectory);
+
+		if(access(searchDirectory, F_OK) != -1)
+		{
+			puts("Command Found");
+			execv(searchDirectory, arguments);
+			break;
+		}
+		
+		count++;
+	}
+}
