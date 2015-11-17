@@ -13,7 +13,7 @@
 #include <stdbool.h>
 
 int CMD_MAX = 80; //Maximum amount of commands
-char PROMPT[] = "LIBERTY SHELL$"; //The prompt
+char PROMPT[] = "LIBERTY SHELL$ "; //The prompt
 
 char *PATH; //NOTE - any other pointer name was giving me a Segmentation Fault
 char **listOfDirectories; //Double pointer for directories
@@ -313,23 +313,26 @@ void execPipeCmd(char** args)
 	char** firstArgs = getArgs(args[0]);
 	char** secondArgs = getArgs(args[1]);
 
-	int p_id = fork();
 	int pipefd[2];
 	pipe(pipefd);
+
+	int p_id = fork();
+	
 	if(p_id == -1)
 		puts("Error in the forking process. \n");
 	else if(p_id == 0)
 	{
 		close(STDOUT_FILENO);
-		close(pipefd[0]);
-		dup2(pipefd[1], STDOUT_FILENO);
+		close(pipefd[1]);
+		dup2(pipefd[0], STDOUT_FILENO);
 		execCmd(firstArgs);
 	}
 	else
 	{
+		wait(&p_id);
 		close(STDIN_FILENO);
-		close(pipefd[1]);
-		dup2(pipefd[0], STDIN_FILENO);
+		close(pipefd[0]);
+		dup2(pipefd[1], STDIN_FILENO);
 		execCmd(secondArgs);
 	}
 }
