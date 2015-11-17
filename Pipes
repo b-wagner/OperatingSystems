@@ -23,11 +23,8 @@ char* findPATH(char **);
 char** getDirectories();
 char** getArgs(char line[]);
 void execCmd(char**);
-
-//For the pipe, defines ends
-int pipefd[2]; 
-
-bool onSecond;
+char** getPipeCmd(char *line);
+void execPipeCmd(char**);
 
 //Main function initiates shell and prompts for user input
 int main(int argc, char **argv, char **envp)
@@ -37,61 +34,54 @@ int main(int argc, char **argv, char **envp)
 	listOfDirectories = getDirectories();
 
 	char line[CMD_MAX]; //Defines how many inputs the line can have
-	char ** argument[2];
+	char ** argument;
 	
 	printf("%s", PROMPT); //Prints the initial prompt
 
 	__pid_t processID; //Handles process IDs
 	int status;
 
-	char buf;
-	onSecond = false;
-
 	//Main loop of Liberty Shell
 	while(fgets(line, CMD_MAX, stdin) != NULL)
 	{
-		//pipe(pipefd);
-		argument[0] = getArgs(line); //Gets and parses first command
-		
-		argument[1] = getArgs(line); //Gets and parses second command
-		
-		processID = fork(); //Forks the process
-		if(processID == -1)
+		bool pipe = false;
+		for(int i = 0; i < sizeof(line); i++)
 		{
-			puts("Error in forking process.\n");
+			if(line[i] == '|')
+			{
+				pipe = true;
+				break;
+			}
 		}
-		//Most piping done here	
-		else if(processID == 0)
+		if(!pipe)
 		{
-			//These execute the two separate arguments
-			execCmd(argument[0]);
-			execCmd(argument[1]);
+			argument = getArgs(line);
+			processID = fork(); //Forks the process
 
-			//Obtained from Internets
-			//close(pipefd[1]);
-			//while(read(pipefd[0], &buf, 1) > 0)
-			//{
-			//	write(STDOUT_FILENO, &buf, 1);
-//
-//				printf("Writing to child...");
-//			}
-//			write(STDOUT_FILENO, "\n", 1);
-//			close(pipefd[0]);
+			if(processID == -1)
+			{
+				puts("Error in forking process.\n");
+			}
+			else if(processID == 0)
+			{
+				execCmd(argument);
+			}
+			else
+			{
+				wait(&status);
+			}
 		}
 		else
 		{
-			//These three were also obtained from internets
-			//close(pipefd[0]);
-			//write(pipefd[1], argv[1], strlen(argv[1]));
-			//close(pipefd[1]);
-
-			wait(&status);
-		}		
-
+			argument = getPipeCmd(line);
+			execPipeCmd(argument);
+		}
+				
 		printf("%s", PROMPT);
 	}	
 
 	free(listOfDirectories);
+	free(argument);
 	return 0;
 }
 
@@ -147,28 +137,6 @@ char** getArgs(char line[])
 			args[arrayDex][stringDex] = '\0';
 			arrayDex++;
 			stringDex = 0;
-		}
-		//This is used to eliminate | and designate the second command
-		else if(line[i] == '|')
-		{
-			if(!onSecond)
-			{	
-				while((p = strchr(line, '|')) != NULL);
-					strcpy(p, p+1);
-					
-				onSecond = true;
-				return args;
-			}
-			else
-			{
-				while((p = strchr(line, '|')) != NULL);
-					strcpy(p, p+1);
-
-				for(int a = 0; a < strlen(*args); a++)
-				{
-					free(args[a]);
-				}
-			}
 		}
 		else if(line[i] == '\n')
 		{
@@ -286,5 +254,85 @@ void execCmd(char** arguments)
 		}
 		
 		count++;
+	}
+}
+char** getPipeCmd(char *line)
+{
+	int numCmds = 1;
+	int lineSize = strlen(line) + 1;
+	for(int i = 0; i < lineSize; i++)
+	{
+		if(line[i] == '|')
+		{
+			numCmds++;
+		}
+	}
+
+	char **cmds = malloc(numCmds * (sizeof(char*)));
+	int cmdCount = 0, argCount = 0;
+	for(int a = 0; a < lineSize; a++)
+	{
+		if(line[a] == '|' || line[a] == '\0')
+		{
+			cmdCount++;
+			cmds[argCount] = malloc(cmdCount * sizeof(char*));
+			cmdCount = 0;
+			argCount++;
+		}
+		else if(line[a] == '\n')
+		{
+			continue;
+		}
+		else
+		{
+			cmdCount++;
+		}
+	}
+	cmdCount = 0, argCount = 0;
+	for(int b = 0; b < lineSize; b++)
+	{
+		if(line[b] == '|' || line[b] == '\0')
+		{
+			cmdCount++;
+			cmds[argCount][cmdCount] = '\0';
+			cmdCount = 0;
+			argCount++;
+		}
+		else if(line[b] == '\n')
+		{
+			continue;
+		}
+		else
+		{
+			cmds[argCount][cmdCount] = line[b];
+			cmdCount++;
+		}
+	}
+
+	return cmds;
+}
+void execPipeCmd(char** args)
+{
+	char** firstArgs = getArgs(args[0]);
+	char** secondArgs = getArgs(args[1]);
+
+	int p_id = fork();
+	int pipefd[2];
+	pipe(pipefd);
+	if(p_id == -1)
+		puts("Error in the forking process. \n");
+	else if(p_id == 0)
+	{
+		close(STDOUT_FILENO);
+		close(pipefd[0]);
+		dup2(pipefd[1], STDOUT_FILENO);
+		execCmd(firstArgs);
+	}
+	else
+	{
+		close(STDIN_FILENO);
+		close(pipefd[1]);
+		dup2(pipefd[0], STDIN_FILENO);
+		execCmd(secondArgs);
 	}
 }
