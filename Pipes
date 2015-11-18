@@ -350,11 +350,31 @@ void execPipeCmd(char** args, int numPipes)
 
 	int p_id = fork();
 	
-	//if(p_id == -1)
-	//	puts("Error in the forking process. \n");
-	//else if(p_id == 0)
-	//{
-	//	close(STDIN_FILENO);
+	if(p_id == -1)
+		puts("Error in the forking process. \n");
+	else if(p_id == 0)
+	{
+		for(int i = 1; i < numPipes; i+=2)
+		{
+			close(STDIN_FILENO);
+			close(pipefd[i]);
+			dup2(pipefd[i-1], STDIN_FILENO);
+			execCmd(separateArgs[i]);
+		}
+	}
+	else
+	{
+		wait(&p_id);
+		for(int i = 0; i < numPipes; i+=2)
+		{
+			close(STDOUT_FILENO);
+			close(pipefd[i]);
+			dup2(pipefd[i+1], STDOUT_FILENO);
+			execCmd(separateArgs[i+1]);
+		}		
+	}
+
+		
 	//	close(pipefd[1]);
 	//	dup2(pipefd[0], STDIN_FILENO);
 	//	execCmd(firstArgs);
