@@ -1,8 +1,9 @@
 /**
 *	Pipe Program
 *	Using the Liberty Shell Linux Shell
+*	Modified from Project 1 Shell Shock Linux shell
 *	By Ben Wagner
-*	Modified November 15, 2015
+*	Modified November 18, 2015
 */
 
 #include <stdio.h>
@@ -88,6 +89,7 @@ int main(int argc, char **argv, char **envp)
 			{
 				wait(&processID);
 			}
+			pipe = false;
 		}
 				
 		printf("%s", PROMPT);
@@ -98,7 +100,6 @@ int main(int argc, char **argv, char **envp)
 	return 0;
 }
 
-//Gets the numbered of commands entered. Used in multipiping
 int getNumCommands(char *line)
 {
 	int numCmds = 1;
@@ -280,11 +281,17 @@ void execCmd(char** arguments)
 		count++;
 	}
 }
-//Gets the piped command
 char** getPipeCmd(char *line)
 {
-	int numCmds = getNumCommands(line);
+	int numCmds = 1;
 	int lineSize = strlen(line) + 1;
+	for(int i = 0; i < lineSize; i++)
+	{
+		if(line[i] == '|')
+		{
+			numCmds++;
+		}
+	}
 
 	char **cmds = malloc(numCmds * (sizeof(char*)));
 	int cmdCount = 0, argCount = 0;
@@ -329,10 +336,9 @@ char** getPipeCmd(char *line)
 
 	return cmds;
 }
-//Mainly handles order of execution of piped commands.
 void execPipeCmd(char** args, int numPipes)
 {
-	char** separateArgs; //Helps divide multiple arguments up in multipiping
+	char** separateArgs;
 
 	for(int i = 0; i < numPipes; i++)
 	{
@@ -348,10 +354,8 @@ void execPipeCmd(char** args, int numPipes)
 	
 	if(p_id == -1)
 		puts("Error in the forking process. \n");
-	//Actual piping done here.
 	else if(p_id == 0)
 	{
-		//Multipiping is supposed to occur here
 		for(int i = 1; i < numPipes; i+=2)
 		{
 			close(STDIN_FILENO);
@@ -360,17 +364,15 @@ void execPipeCmd(char** args, int numPipes)
 			execCmd(separateArgs[i]);
 		}
 	}
-	//Piping also done here
 	else
 	{
 		wait(&p_id);
-		//Multipiping also supposed to occur here
 		for(int i = 0; i < numPipes; i+=2)
 		{
 			close(STDOUT_FILENO);
 			close(pipefd[i]);
 			dup2(pipefd[i+1], STDOUT_FILENO);
-			execCmd(separateArgs[i]);
+			execCmd(separateArgs[i+1]);
 		}		
 	}
 
