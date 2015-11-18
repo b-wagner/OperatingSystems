@@ -24,7 +24,8 @@ char** getDirectories();
 char** getArgs(char line[]);
 void execCmd(char**);
 char** getPipeCmd(char *line);
-void execPipeCmd(char**);
+void execPipeCmd(char**, int);
+int getNumCommands(char *line);
 
 //Main function initiates shell and prompts for user input
 int main(int argc, char **argv, char **envp)
@@ -35,13 +36,10 @@ int main(int argc, char **argv, char **envp)
 
 	char line[CMD_MAX]; //Defines how many inputs the line can have
 	char **argument;
-	
 	printf("%s", PROMPT); //Prints the initial prompt
 
-	//__pid_t processID; //Handles process IDs
-	//int status;
-
 	int processID;
+	int numCommands;
 
 	//Main loop of Liberty Shell
 	while(fgets(line, CMD_MAX, stdin) != NULL)
@@ -76,7 +74,20 @@ int main(int argc, char **argv, char **envp)
 		else
 		{
 			argument = getPipeCmd(line);
-			execPipeCmd(argument);
+			processID = fork();
+			if(processID == -1)
+			{
+				puts("Error in forking process.\n");
+			}
+			else if(processID == 0)
+			{
+				numCommands = getNumCommands(line);
+				execPipeCmd(argument, numCommands);
+			}
+			else
+			{
+				wait(&processID);
+			}
 		}
 				
 		printf("%s", PROMPT);
@@ -85,6 +96,21 @@ int main(int argc, char **argv, char **envp)
 	free(listOfDirectories);
 	free(argument);
 	return 0;
+}
+
+int getNumCommands(char *line)
+{
+	int numCmds = 1;
+	int lineSize = strlen(line) + 1;
+	for(int i = 0; i < lineSize; i++)
+	{
+		if(line[i] == '|')
+		{
+			numCmds++;
+		}
+	}
+
+	return numCmds;
 }
 
 //Gets additional arguments entered by the user
@@ -308,31 +334,37 @@ char** getPipeCmd(char *line)
 
 	return cmds;
 }
-void execPipeCmd(char** args)
+void execPipeCmd(char** args, int numPipes)
 {
-	char** firstArgs = getArgs(args[0]);
-	char** secondArgs = getArgs(args[1]);
+	char** separateArgs;
 
-	int pipefd[2];
+	for(int i = 0; i < numPipes; i++)
+	{
+		separateArgs[i] = getArgs(args[i]);
+	}
+	//char** firstArgs = getArgs(args[0]);
+	//char** secondArgs = getArgs(args[1]);
+
+	int pipefd[numPipes];
 	pipe(pipefd);
 
 	int p_id = fork();
 	
-	if(p_id == -1)
-		puts("Error in the forking process. \n");
-	else if(p_id == 0)
-	{
-		close(STDOUT_FILENO);
-		close(pipefd[1]);
-		dup2(pipefd[0], STDOUT_FILENO);
-		execCmd(firstArgs);
-	}
-	else
-	{
-		wait(&p_id);
-		close(STDIN_FILENO);
-		close(pipefd[0]);
-		dup2(pipefd[1], STDIN_FILENO);
-		execCmd(secondArgs);
-	}
+	//if(p_id == -1)
+	//	puts("Error in the forking process. \n");
+	//else if(p_id == 0)
+	//{
+	//	close(STDIN_FILENO);
+	//	close(pipefd[1]);
+	//	dup2(pipefd[0], STDIN_FILENO);
+	//	execCmd(firstArgs);
+	//}
+	//else
+	//{
+	//	wait(&p_id);
+	//	close(STDOUT_FILENO);
+	//	close(pipefd[0]);
+	//	dup2(pipefd[1], STDOUT_FILENO);
+	//	execCmd(secondArgs);
+	//}
 }
